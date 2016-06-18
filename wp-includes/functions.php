@@ -186,7 +186,7 @@ function wp_maybe_decline_date( $date ) {
 			$months = $wp_locale->month;
 
 			foreach ( $months as $key => $month ) {
-				$months[ $key ] = '#' . $month . '#';
+				$months[ $key ] = '#\b' . $month . '\b#u';
 			}
 
 			$date = preg_replace( $months, $wp_locale->month_genitive, $date );
@@ -237,7 +237,7 @@ function number_format_i18n( $number, $decimals = 0 ) {
 /**
  * Convert number of bytes largest unit bytes will fit into.
  *
- * It is easier to read 1 kB than 1024 bytes and 1 MB than 1048576 bytes. Converts
+ * It is easier to read 1 KB than 1024 bytes and 1 MB than 1048576 bytes. Converts
  * number of bytes to human readable number by taking the number of that unit
  * that the bytes will go into it. Supports TB value.
  *
@@ -259,7 +259,7 @@ function size_format( $bytes, $decimals = 0 ) {
 		'TB' => TB_IN_BYTES,
 		'GB' => GB_IN_BYTES,
 		'MB' => MB_IN_BYTES,
-		'kB' => KB_IN_BYTES,
+		'KB' => KB_IN_BYTES,
 		'B'  => 1,
 	);
 
@@ -2661,7 +2661,11 @@ function _default_wp_die_handler( $message, $title = '', $args = array() ) {
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<meta name="viewport" content="width=device-width">
-	<?php wp_no_robots(); ?>
+	<?php
+	if ( function_exists( 'wp_no_robots' ) ) {
+		wp_no_robots();
+	}
+	?>
 	<title><?php echo $title ?></title>
 	<style type="text/css">
 		html {
