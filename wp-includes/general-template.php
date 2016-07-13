@@ -647,7 +647,7 @@ function get_bloginfo( $show = '', $filter = 'raw' ) {
 	switch( $show ) {
 		case 'home' : // DEPRECATED
 		case 'siteurl' : // DEPRECATED
-			_deprecated_argument( __FUNCTION__, '2.2', sprintf(
+			_deprecated_argument( __FUNCTION__, '2.2.0', sprintf(
 				/* translators: 1: 'siteurl'/'home' argument, 2: bloginfo() function name, 3: 'url' argument */
 				__( 'The %1$s option is deprecated for the family of %2$s functions. Use the %3$s option instead.' ),
 				'<code>' . $show . '</code>',
@@ -720,7 +720,7 @@ function get_bloginfo( $show = '', $filter = 'raw' ) {
 			}
 			break;
 		case 'text_direction':
-			_deprecated_argument( __FUNCTION__, '2.2', sprintf(
+			_deprecated_argument( __FUNCTION__, '2.2.0', sprintf(
 				/* translators: 1: 'text_direction' argument, 2: bloginfo() function name, 3: is_rtl() function name */
 				__( 'The %1$s option is deprecated for the family of %2$s functions. Use the %3$s function instead.' ),
 				'<code>' . $show . '</code>',
@@ -2265,10 +2265,9 @@ function get_the_modified_date( $d = '', $post = null ) {
 	$post = get_post( $post );
 
 	if ( ! $post ) {
-		return false;
-	}
-
-	if ( empty( $d ) ) {
+		// For backward compatibility, failures go through the filter below.
+		$the_time = false;
+	} elseif ( empty( $d ) ) {
 		$the_time = get_post_modified_time( get_option( 'date_format' ), false, $post, true );
 	} else {
 		$the_time = get_post_modified_time( $d, false, $post, true );
@@ -2421,10 +2420,9 @@ function get_the_modified_time( $d = '', $post = null ) {
 	$post = get_post( $post );
 
 	if ( ! $post ) {
-		return false;
-	}
-
-	if ( empty( $d ) ) {
+		// For backward compatibility, failures go through the filter below.
+		$the_time = false;
+	} elseif ( empty( $d ) ) {
 		$the_time = get_post_modified_time( get_option( 'time_format' ), false, $post, true );
 	} else {
 		$the_time = get_post_modified_time( $d, false, $post, true );
@@ -2790,6 +2788,102 @@ function wp_site_icon() {
 }
 
 /**
+ * Prints resource hints to browsers for pre-fetching, pre-rendering and pre-connecting to web sites.
+ *
+ * Gives hints to browsers to prefetch specific pages or render them in the background,
+ * to perform DNS lookups or to begin the connection handshake (DNS, TCP, TLS) in the background.
+ *
+ * These performance improving indicators work by using `<link rel"…">`.
+ *
+ * @since 4.6.0
+ */
+function wp_resource_hints() {
+	$hints = array(
+		'dns-prefetch' => wp_resource_hints_scripts_styles(),
+		'preconnect'   => array( 's.w.org' ),
+		'prefetch'     => array(),
+		'prerender'    => array(),
+	);
+
+	foreach ( $hints as $relation_type => $urls ) {
+		/**
+		 * Filters domains and URLs for resource hints.
+		 *
+		 * @since 4.6.0
+		 *
+		 * @param array  $urls          URLs to print for resource hints.
+		 * @param string $relation_type The relation type the URLs are printed for, e.g. 'preconnect' or 'prerender'.
+		 */
+		$urls = apply_filters( 'wp_resource_hints', $urls, $relation_type );
+
+		foreach ( $urls as $key => $url ) {
+			$url = esc_url( $url, array( 'http', 'https' ) );
+			if ( ! $url ) {
+				unset( $urls[ $key ] );
+				continue;
+			}
+
+			if ( in_array( $relation_type, array( 'preconnect', 'dns-prefetch' ) ) ) {
+				$parsed = wp_parse_url( $url );
+				if ( empty( $parsed['host'] ) ) {
+					unset( $urls[ $key ] );
+					continue;
+				}
+
+				if ( 'dns-prefetch' === $relation_type ) {
+					$url = '//' . $parsed['host'];
+				} else if ( ! empty( $parsed['scheme'] ) ) {
+					$url = $parsed['scheme'] . '://' . $parsed['host'];
+				} else {
+					$url = $parsed['host'];
+				}
+			}
+
+			$urls[ $key ] = $url;
+		}
+
+		$urls = array_unique( $urls );
+
+		foreach ( $urls as $url ) {
+			printf( "<link rel='%s' href='%s'>\n", $relation_type, $url );
+		}
+	}
+}
+
+/**
+ * Adds dns-prefetch for all scripts and styles enqueued from external hosts.
+ *
+ * @since 4.6.0
+ */
+function wp_resource_hints_scripts_styles() {
+	global $wp_scripts, $wp_styles;
+
+	$unique_hosts = array();
+
+	if ( is_object( $wp_scripts ) && ! empty( $wp_scripts->registered ) ) {
+		foreach ( $wp_scripts->registered as $registered_script ) {
+			$parsed = wp_parse_url( $registered_script->src );
+
+			if ( ! empty( $parsed['host'] ) && ! in_array( $parsed['host'], $unique_hosts ) && $parsed['host'] !== $_SERVER['SERVER_NAME'] ) {
+				$unique_hosts[] = $parsed['host'];
+			}
+		}
+	}
+
+	if ( is_object( $wp_styles ) && ! empty( $wp_styles->registered ) ) {
+		foreach ( $wp_styles->registered as $registered_style ) {
+			$parsed = wp_parse_url( $registered_style->src );
+
+			if ( ! empty( $parsed['host'] ) && ! in_array( $parsed['host'], $unique_hosts ) && $parsed['host'] !== $_SERVER['SERVER_NAME'] ) {
+				$unique_hosts[] = $parsed['host'];
+			}
+		}
+	}
+
+	return $unique_hosts;
+}
+
+/**
  * Whether the user should have a WYSIWIG editor.
  *
  * Checks that the user requires a WYSIWIG editor and that the editor is
@@ -2865,7 +2959,7 @@ function wp_default_editor() {
  * _WP_Editors should not be used directly. See https://core.trac.wordpress.org/ticket/17144.
  *
  * NOTE: Once initialized the TinyMCE editor cannot be safely moved in the DOM. For that reason
- * running wp_editor() inside of a metabox is not a good idea unless only Quicktags is used.
+ * running wp_editor() inside of a meta box is not a good idea unless only Quicktags is used.
  * On the post edit screen several actions can be used to include additional editors
  * containing TinyMCE: 'edit_page_form', 'edit_form_advanced' and 'dbx_post_sidebar'.
  * See https://core.trac.wordpress.org/ticket/19173 for more information.

@@ -621,7 +621,7 @@ class WP_Term_Query {
 		$this->sql_clauses['orderby'] = $orderby ? "ORDER BY $orderby $order" : '';
 		$this->sql_clauses['limits']  = $limits;
 
-		$this->request = $this->request = "{$this->sql_clauses['select']} {$this->sql_clauses['from']} {$where} {$this->sql_clauses['orderby']} {$this->sql_clauses['limits']}";
+		$this->request = "{$this->sql_clauses['select']} {$this->sql_clauses['from']} {$where} {$this->sql_clauses['orderby']} {$this->sql_clauses['limits']}";
 
 		// $args can be anything. Only use the args defined in defaults to compute the key.
 		$key = md5( serialize( wp_array_slice_assoc( $args, array_keys( $this->query_var_defaults ) ) ) . serialize( $taxonomies ) . $this->request );
@@ -814,6 +814,8 @@ class WP_Term_Query {
 	protected function parse_orderby_meta( $orderby_raw ) {
 		$orderby = '';
 
+		// Tell the meta query to generate its SQL, so we have access to table aliases.
+		$this->meta_query->get_sql( 'term', 't', 'term_id' );
 		$meta_clauses = $this->meta_query->get_clauses();
 		if ( ! $meta_clauses || ! $orderby_raw ) {
 			return $orderby;

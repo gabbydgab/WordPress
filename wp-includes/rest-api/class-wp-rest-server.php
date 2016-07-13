@@ -228,6 +228,11 @@ class WP_REST_Server {
 		$this->send_header( 'Content-Type', $content_type . '; charset=' . get_option( 'blog_charset' ) );
 		$this->send_header( 'X-Robots-Tag', 'noindex' );
 
+		$api_root = get_rest_url();
+		if ( ! empty( $api_root ) ) {
+			$this->send_header( 'Link', '<' . esc_url_raw( $api_root ) . '>; rel="https://api.w.org/"' );
+		}
+
 		/*
 		 * Mitigate possible JSONP Flash attacks.
 		 *
@@ -848,8 +853,6 @@ class WP_REST_Server {
 					$request->set_url_params( $args );
 					$request->set_attributes( $handler );
 
-					$request->sanitize_params();
-
 					$defaults = array();
 
 					foreach ( $handler['args'] as $arg => $options ) {
@@ -864,6 +867,8 @@ class WP_REST_Server {
 					if ( is_wp_error( $check_required ) ) {
 						$response = $check_required;
 					}
+
+					$request->sanitize_params();
 				}
 
 				if ( ! is_wp_error( $response ) ) {
@@ -874,7 +879,7 @@ class WP_REST_Server {
 						if ( is_wp_error( $permission ) ) {
 							$response = $permission;
 						} else if ( false === $permission || null === $permission ) {
-							$response = new WP_Error( 'rest_forbidden', __( "You don't have permission to do this." ), array( 'status' => 403 ) );
+							$response = new WP_Error( 'rest_forbidden', __( 'Sorry, you are not allowed to do that.' ), array( 'status' => 403 ) );
 						}
 					}
 				}

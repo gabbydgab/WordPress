@@ -13,14 +13,14 @@ if ( is_multisite() ) {
 	if ( ! current_user_can( 'create_users' ) && ! current_user_can( 'promote_users' ) ) {
 		wp_die(
 			'<h1>' . __( 'Cheatin&#8217; uh?' ) . '</h1>' .
-			'<p>' . __( 'You do not have sufficient permissions to add users to this network.' ) . '</p>',
+			'<p>' . __( 'Sorry, you are not allowed to add users to this network.' ) . '</p>',
 			403
 		);
 	}
 } elseif ( ! current_user_can( 'create_users' ) ) {
 	wp_die(
 		'<h1>' . __( 'Cheatin&#8217; uh?' ) . '</h1>' .
-		'<p>' . __( 'You are not allowed to create users.' ) . '</p>',
+		'<p>' . __( 'Sorry, you are not allowed to create users.' ) . '</p>',
 		403
 	);
 }
@@ -53,7 +53,7 @@ if ( isset($_REQUEST['action']) && 'adduser' == $_REQUEST['action'] ) {
 	if ( ! current_user_can( 'promote_user', $user_details->ID ) ) {
 		wp_die(
 			'<h1>' . __( 'Cheatin&#8217; uh?' ) . '</h1>' .
-			'<p>' . __( 'You do not have sufficient permissions to add users to this network.' ) . '</p>',
+			'<p>' . __( 'Sorry, you are not allowed to add users to this network.' ) . '</p>',
 			403
 		);
 	}
@@ -107,7 +107,7 @@ Please click the following link to confirm the invite:
 	if ( ! current_user_can( 'create_users' ) ) {
 		wp_die(
 			'<h1>' . __( 'Cheatin&#8217; uh?' ) . '</h1>' .
-			'<p>' . __( 'You are not allowed to create users.' ) . '</p>',
+			'<p>' . __( 'Sorry, you are not allowed to create users.' ) . '</p>',
 			403
 		);
 	}
@@ -148,7 +148,7 @@ Please click the following link to confirm the invite:
 			if ( isset( $_POST[ 'noconfirmation' ] ) && current_user_can( 'manage_network_users' ) ) {
 				$key = $wpdb->get_var( $wpdb->prepare( "SELECT activation_key FROM {$wpdb->signups} WHERE user_login = %s AND user_email = %s", $new_user_login, $new_user_email ) );
 				$new_user = wpmu_activate_signup( $key );
-				if ( ! is_wp_error( $new_user ) ) {
+				if ( is_wp_error( $new_user ) ) {
 					$redirect = add_query_arg( array( 'update' => 'addnoconfirmation' ), 'user-new.php' );
 				} else {
 					$redirect = add_query_arg( array( 'update' => 'addnoconfirmation', 'user_id' => $new_user['user_id'] ), 'user-new.php' );

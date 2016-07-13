@@ -123,8 +123,8 @@ class WP_Site_Query {
 	 *                                           an empty array, or 'none' to disable `ORDER BY` clause.
 	 *                                           Default 'id'.
 	 *     @type string       $order             How to order retrieved sites. Accepts 'ASC', 'DESC'. Default 'ASC'.
-	 *     @type int          $network_id        Limit results to those affiliated with a given network ID.
-	 *                                           Default current network ID.
+	 *     @type int          $network_id        Limit results to those affiliated with a given network ID. If 0,
+	 *                                           include all networks. Default 0.
 	 *     @type array        $network__in       Array of network IDs to include affiliated sites for. Default empty.
 	 *     @type array        $network__not_in   Array of network IDs to exclude affiliated sites for. Default empty.
 	 *     @type string       $domain            Limit results to those affiliated with a given domain.
@@ -231,13 +231,9 @@ class WP_Site_Query {
 	 * @since 4.6.0
 	 * @access public
 	 *
-	 * @global wpdb $wpdb WordPress database abstraction object.
-	 *
 	 * @return array|int List of sites, or number of sites when 'count' is passed as a query var.
 	 */
 	public function get_sites() {
-		global $wpdb;
-
 		$this->parse_query();
 
 		/**
@@ -256,12 +252,28 @@ class WP_Site_Query {
 			$last_changed = microtime();
 			wp_cache_set( 'last_changed', $last_changed, 'sites' );
 		}
-		$cache_key = "get_site_ids:$key:$last_changed";
 
-		$site_ids = wp_cache_get( $cache_key, 'sites' );
-		if ( false === $site_ids ) {
+		$cache_key = "get_sites:$key:$last_changed";
+		$cache_value = wp_cache_get( $cache_key, 'sites' );
+
+		if ( false === $cache_value ) {
 			$site_ids = $this->get_site_ids();
-			wp_cache_add( $cache_key, $site_ids, 'sites' );
+			if ( $site_ids ) {
+				$this->set_found_sites();
+			}
+
+			$cache_value = array(
+				'site_ids' => $site_ids,
+				'found_sites' => $this->found_sites,
+			);
+			wp_cache_add( $cache_key, $cache_value, 'sites' );
+		} else {
+			$site_ids = $cache_value['site_ids'];
+			$this->found_sites = $cache_value['found_sites'];
+		}
+
+		if ( $this->found_sites && $this->query_vars['number'] ) {
+			$this->max_num_pages = ceil( $this->found_sites / $this->query_vars['number'] );
 		}
 
 		// If querying for a count only, there's nothing more to do.
@@ -271,23 +283,6 @@ class WP_Site_Query {
 		}
 
 		$site_ids = array_map( 'intval', $site_ids );
-
-		$this->site_count = count( $this->sites );
-
-		if ( $site_ids && $this->query_vars['number'] && ! $this->query_vars['no_found_rows'] ) {
-			/**
-			 * Filters the query used to retrieve found site count.
-			 *
-			 * @since 4.6.0
-			 *
-			 * @param string        $found_sites_query SQL query. Default 'SELECT FOUND_ROWS()'.
-			 * @param WP_Site_Query $site_query        The `WP_Site_Query` instance.
-			 */
-			$found_sites_query = apply_filters( 'found_sites_query', 'SELECT FOUND_ROWS()', $this );
-
-			$this->found_sites = (int) $wpdb->get_var( $found_sites_query );
-			$this->max_num_pages = ceil( $this->found_sites / $this->query_vars['number'] );
-		}
 
 		if ( 'ids' == $this->query_vars['fields'] ) {
 			$this->sites = $site_ids;
@@ -569,6 +564,33 @@ class WP_Site_Query {
 		$site_ids = $wpdb->get_col( $this->request );
 
 		return array_map( 'intval', $site_ids );
+	}
+
+	/**
+	 * Populates found_sites and max_num_pages properties for the current query
+	 * if the limit clause was used.
+	 *
+	 * @since 4.6.0
+	 * @access private
+	 *
+	 * @global wpdb $wpdb WordPress database abstraction object.
+	 */
+	private function set_found_sites() {
+		global $wpdb;
+
+		if ( $this->query_vars['number'] && ! $this->query_vars['no_found_rows'] ) {
+			/**
+			 * Filters the query used to retrieve found site count.
+			 *
+			 * @since 4.6.0
+			 *
+			 * @param string        $found_sites_query SQL query. Default 'SELECT FOUND_ROWS()'.
+			 * @param WP_Site_Query $site_query        The `WP_Site_Query` instance.
+			 */
+			$found_sites_query = apply_filters( 'found_sites_query', 'SELECT FOUND_ROWS()', $this );
+
+			$this->found_sites = (int) $wpdb->get_var( $found_sites_query );
+		}
 	}
 
 	/**
