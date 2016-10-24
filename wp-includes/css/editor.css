@@ -12,6 +12,13 @@
 	font-family: inherit;
 }
 
+.mce-container .mce-monospace,
+.mce-widget .mce-monospace {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 13px;
+	line-height: 150%;
+}
+
 /* TinyMCE windows */
 #mce-modal-block,
 #mce-modal-block.mce-fade {
@@ -390,6 +397,11 @@ div.mce-path {
 	box-shadow: none;
 	text-shadow: none;
 	cursor: pointer;
+}
+
+.mce-btn .mce-txt {
+	direction: inherit;
+	text-align: inherit;
 }
 
 .mce-toolbar .mce-btn-group .mce-btn,
@@ -1142,7 +1154,7 @@ i.mce-i-wp_code:before {
 }
 
 .js .tmce-active .wp-editor-area {
-	color: white;
+	color: #fff;
 }
 
 .tmce-active .quicktags-toolbar {

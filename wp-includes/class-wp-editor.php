@@ -296,14 +296,13 @@ final class _WP_Editors {
 	/**
 	 * @static
 	 *
-	 * @global string $wp_version
 	 * @global string $tinymce_version
 	 *
 	 * @param string $editor_id
 	 * @param array  $set
 	 */
 	public static function editor_settings($editor_id, $set) {
-		global $wp_version, $tinymce_version;
+		global $tinymce_version;
 
 		if ( empty(self::$first_init) ) {
 			if ( is_admin() ) {
@@ -352,7 +351,7 @@ final class _WP_Editors {
 			if ( empty( self::$first_init ) ) {
 				self::$baseurl = includes_url( 'js/tinymce' );
 
-				$mce_locale = get_locale();
+				$mce_locale = get_user_locale();
 				self::$mce_locale = $mce_locale = empty( $mce_locale ) ? 'en' : strtolower( substr( $mce_locale, 0, 2 ) ); // ISO 639-1
 
 				/** This filter is documented in wp-admin/includes/media.php */
@@ -559,7 +558,7 @@ final class _WP_Editors {
 				}
 
 				$suffix = SCRIPT_DEBUG ? '' : '.min';
-				$version = 'ver=' . $wp_version;
+				$version = 'ver=' . get_bloginfo( 'version' );
 				$dashicons = includes_url( "css/dashicons$suffix.css?$version" );
 
 				// WordPress default stylesheet and dashicons
@@ -664,6 +663,7 @@ final class _WP_Editors {
 
 			if ( $post = get_post() ) {
 				$body_class .= ' post-type-' . sanitize_html_class( $post->post_type ) . ' post-status-' . sanitize_html_class( $post->post_status );
+
 				if ( post_type_supports( $post->post_type, 'post-formats' ) ) {
 					$post_format = get_post_format( $post );
 					if ( $post_format && ! is_wp_error( $post_format ) )
@@ -671,9 +671,14 @@ final class _WP_Editors {
 					else
 						$body_class .= ' post-format-standard';
 				}
+
+				if ( $page_template = get_page_template_slug( $post ) ) {
+					$page_template = str_replace( '.', '-', basename( $page_template, '.php' ) );
+					$body_class .= ' page-template-' . sanitize_html_class( $page_template );
+				}
 			}
 
-			$body_class .= ' locale-' . sanitize_html_class( strtolower( str_replace( '_', '-', get_locale() ) ) );
+			$body_class .= ' locale-' . sanitize_html_class( strtolower( str_replace( '_', '-', get_user_locale() ) ) );
 
 			if ( !empty($set['tinymce']['body_class']) ) {
 				$body_class .= ' ' . $set['tinymce']['body_class'];
@@ -1065,7 +1070,7 @@ final class _WP_Editors {
 			'Ctrl + letter:' => __( 'Ctrl + letter:' ),
 			'Letter' => __( 'Letter' ),
 			'Action' => __( 'Action' ),
-			'Warning: the link has been inserted but the destination cannot be reached.' => __( 'Warning: the link has been inserted but the destination cannot be reached.' ),
+			'Warning: the link has been inserted but may have errors. Please test it.' => __( 'Warning: the link has been inserted but may have errors. Please test it.' ),
 			'To move focus to other buttons use Tab or the arrow keys. To return focus to the editor press Escape or use one of the buttons.' =>
 				__( 'To move focus to other buttons use Tab or the arrow keys. To return focus to the editor press Escape or use one of the buttons.' ),
 			'When starting a new paragraph with one of these formatting shortcuts followed by a space, the formatting will be applied automatically. Press Backspace or Escape to undo.' =>
@@ -1131,13 +1136,12 @@ final class _WP_Editors {
 	/**
 	 *
 	 * @static
-	 * @global string $wp_version
 	 * @global string $tinymce_version
 	 * @global bool   $concatenate_scripts
 	 * @global bool   $compress_scripts
 	 */
 	public static function editor_js() {
-		global $wp_version, $tinymce_version, $concatenate_scripts, $compress_scripts;
+		global $tinymce_version, $concatenate_scripts, $compress_scripts;
 
 		/**
 		 * Filters "tiny_mce_version" is deprecated
@@ -1215,7 +1219,7 @@ final class _WP_Editors {
 
 		$baseurl = self::$baseurl;
 		// Load tinymce.js when running from /src, else load wp-tinymce.js.gz (production) or tinymce.min.js (SCRIPT_DEBUG)
-		$mce_suffix = false !== strpos( $wp_version, '-src' ) ? '' : '.min';
+		$mce_suffix = false !== strpos( get_bloginfo( 'version' ), '-src' ) ? '' : '.min';
 
 		if ( $tmce_on ) {
 			if ( $compressed ) {
@@ -1286,13 +1290,7 @@ final class _WP_Editors {
 		</script>
 		<?php
 
-		$has_wplink = in_array( 'wplink', self::$plugins, true );
-
-		if ( $has_wplink ) {
-			echo '<input type="hidden" id="_wplink_urltest_nonce" value="' . wp_create_nonce( 'wp-test-url' ) . '" />';
-		}
-
-		if ( $has_wplink || in_array( 'link', self::$qt_buttons, true ) ) {
+		if ( in_array( 'wplink', self::$plugins, true ) || in_array( 'link', self::$qt_buttons, true ) ) {
 			self::wp_link_dialog();
 		}
 
