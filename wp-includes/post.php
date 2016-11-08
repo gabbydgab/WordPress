@@ -66,6 +66,7 @@ function create_initial_post_types() {
 			'add_new' => _x( 'Add New', 'add new media' ),
  			'edit_item' => __( 'Edit Media' ),
  			'view_item' => __( 'View Attachment Page' ),
+			'attributes' => __( 'Attachment Attributes' ),
 		),
 		'public' => true,
 		'show_ui' => true,
@@ -1326,6 +1327,7 @@ function _post_type_meta_capabilities( $capabilities = null ) {
  *                       post types. Default is 'Parent Page:'.
  * - `all_items` - Label to signify all items in a submenu link. Default is 'All Posts' / 'All Pages'.
  * - `archives` - Label for archives in nav menus. Default is 'Post Archives' / 'Page Archives'.
+ * - `attributes` - Label for the attributes meta box. Default is 'Post Attributes' / 'Page Attributes'.
  * - `insert_into_item` - Label for the media frame button. Default is 'Insert into post' / 'Insert into page'.
  * - `uploaded_to_this_item` - Label for the media frame filter. Default is 'Uploaded to this post' /
  *                           'Uploaded to this page'.
@@ -1351,7 +1353,7 @@ function _post_type_meta_capabilities( $capabilities = null ) {
  * @since 4.4.0 Added the `insert_into_item`, `uploaded_to_this_item`, `filter_items_list`,
  *              `items_list_navigation`, and `items_list` labels.
  * @since 4.6.0 Converted the `$post_type` parameter to accept a WP_Post_Type object.
- * @since 4.7.0 Added the `view_items` label.
+ * @since 4.7.0 Added the `view_items` and `attributes` labels.
  *
  * @access private
  *
@@ -1374,6 +1376,7 @@ function get_post_type_labels( $post_type_object ) {
 		'parent_item_colon' => array( null, __('Parent Page:') ),
 		'all_items' => array( __( 'All Posts' ), __( 'All Pages' ) ),
 		'archives' => array( __( 'Post Archives' ), __( 'Page Archives' ) ),
+		'attributes' => array( __( 'Post Attributes' ), __( 'Page Attributes' ) ),
 		'insert_into_item' => array( __( 'Insert into post' ), __( 'Insert into page' ) ),
 		'uploaded_to_this_item' => array( __( 'Uploaded to this post' ), __( 'Uploaded to this page' ) ),
 		'featured_image' => array( __( 'Featured Image' ), __( 'Featured Image' ) ),
@@ -3393,7 +3396,7 @@ function wp_insert_post( $postarr, $wp_error = false ) {
 
 	$post = get_post( $post_ID );
 
-	if ( ! empty( $postarr['page_template'] ) && 'page' == $data['post_type'] ) {
+	if ( ! empty( $postarr['page_template'] ) ) {
 		$post->page_template = $postarr['page_template'];
 		$page_templates = wp_get_theme()->get_page_templates( $post );
 		if ( 'default' != $postarr['page_template'] && ! isset( $page_templates[ $postarr['page_template'] ] ) ) {
@@ -3991,19 +3994,32 @@ function wp_transition_post_status( $new_status, $old_status, $post ) {
  * Add a URL to those already pinged.
  *
  * @since 1.5.0
+ * @since 4.7.0 $post_id can be a WP_Post object.
+ * @since 4.7.0 $uri can be an array of URIs.
  *
  * @global wpdb $wpdb WordPress database abstraction object.
  *
- * @param int    $post_id Post ID.
- * @param string $uri     Ping URI.
+ * @param int|WP_Post  $post_id Post object or ID.
+ * @param string|array $uri     Ping URI or array of URIs.
  * @return int|false How many rows were updated.
  */
 function add_ping( $post_id, $uri ) {
 	global $wpdb;
-	$pung = $wpdb->get_var( $wpdb->prepare( "SELECT pinged FROM $wpdb->posts WHERE ID = %d", $post_id ));
-	$pung = trim($pung);
-	$pung = preg_split('/\s/', $pung);
-	$pung[] = $uri;
+
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+
+	$pung = trim( $post->pinged );
+	$pung = preg_split( '/\s/', $pung );
+
+	if ( is_array( $uri ) ) {
+		$pung = array_merge( $pung, $uri );
+	}
+	else {
+		$pung[] = $uri;
+	}
 	$new = implode("\n", $pung);
 
 	/**
@@ -4015,9 +4031,9 @@ function add_ping( $post_id, $uri ) {
 	 */
 	$new = apply_filters( 'add_ping', $new );
 
-	// expected_slashed ($new).
-	$new = wp_unslash($new);
-	return $wpdb->update( $wpdb->posts, array( 'pinged' => $new ), array( 'ID' => $post_id ) );
+	$return = $wpdb->update( $wpdb->posts, array( 'pinged' => $new ), array( 'ID' => $post->ID ) );
+	clean_post_cache( $post->ID );
+	return $return;
 }
 
 /**
@@ -4059,16 +4075,19 @@ function get_enclosed( $post_id ) {
  *
  * @since 1.5.0
  *
- * @global wpdb $wpdb WordPress database abstraction object.
+ * @since 4.7.0 $post_id can be a WP_Post object.
  *
- * @param int $post_id Post ID.
+ * @param int|WP_Post $post_id Post ID or object.
  * @return array
  */
 function get_pung( $post_id ) {
-	global $wpdb;
-	$pung = $wpdb->get_var( $wpdb->prepare( "SELECT pinged FROM $wpdb->posts WHERE ID = %d", $post_id ));
-	$pung = trim($pung);
-	$pung = preg_split('/\s/', $pung);
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+
+	$pung = trim( $post->pinged );
+	$pung = preg_split( '/\s/', $pung );
 
 	/**
 	 * Filters the list of already-pinged URLs for the given post.
@@ -4084,16 +4103,19 @@ function get_pung( $post_id ) {
  * Retrieve URLs that need to be pinged.
  *
  * @since 1.5.0
+ * @since 4.7.0 $post_id can be a WP_Post object.
  *
- * @global wpdb $wpdb WordPress database abstraction object.
- *
- * @param int $post_id Post ID
+ * @param int|WP_Post $post_id Post Object or ID
  * @return array
  */
 function get_to_ping( $post_id ) {
-	global $wpdb;
-	$to_ping = $wpdb->get_var( $wpdb->prepare( "SELECT to_ping FROM $wpdb->posts WHERE ID = %d", $post_id ));
-	$to_ping = sanitize_trackback_urls( $to_ping );
+	$post = get_post( $post_id );
+
+	if ( ! $post ) {
+		return false;
+	}
+
+	$to_ping = sanitize_trackback_urls( $post->to_ping );
 	$to_ping = preg_split('/\s/', $to_ping, -1, PREG_SPLIT_NO_EMPTY);
 
 	/**
@@ -4194,11 +4216,7 @@ function get_page( $page, $output = OBJECT, $filter = 'raw') {
 function get_page_by_path( $page_path, $output = OBJECT, $post_type = 'page' ) {
 	global $wpdb;
 
-	$last_changed = wp_cache_get( 'last_changed', 'posts' );
-	if ( false === $last_changed ) {
-		$last_changed = microtime();
-		wp_cache_set( 'last_changed', $last_changed, 'posts' );
-	}
+	$last_changed = wp_cache_get_last_changed( 'posts' );
 
 	$hash = md5( $page_path . serialize( $post_type ) );
 	$cache_key = "get_page_by_path:$hash:$last_changed";
@@ -4540,11 +4558,7 @@ function get_pages( $args = array() ) {
 
 	// $args can be whatever, only use the args defined in defaults to compute the key.
 	$key = md5( serialize( wp_array_slice_assoc( $r, array_keys( $defaults ) ) ) );
-	$last_changed = wp_cache_get( 'last_changed', 'posts' );
-	if ( ! $last_changed ) {
-		$last_changed = microtime();
-		wp_cache_set( 'last_changed', $last_changed, 'posts' );
-	}
+	$last_changed = wp_cache_get_last_changed( 'posts' );
 
 	$cache_key = "get_pages:$key:$last_changed";
 	if ( $cache = wp_cache_get( $cache_key, 'posts' ) ) {
@@ -5601,35 +5615,38 @@ function _get_last_post_time( $timezone, $field, $post_type = 'any' ) {
 	}
 
 	$date = wp_cache_get( $key, 'timeinfo' );
-
-	if ( ! $date ) {
-		if ( 'any' === $post_type ) {
-			$post_types = get_post_types( array( 'public' => true ) );
-			array_walk( $post_types, array( $wpdb, 'escape_by_ref' ) );
-			$post_types = "'" . implode( "', '", $post_types ) . "'";
-		} else {
-			$post_types = "'" . sanitize_key( $post_type ) . "'";
-		}
-
-		switch ( $timezone ) {
-			case 'gmt':
-				$date = $wpdb->get_var("SELECT post_{$field}_gmt FROM $wpdb->posts WHERE post_status = 'publish' AND post_type IN ({$post_types}) ORDER BY post_{$field}_gmt DESC LIMIT 1");
-				break;
-			case 'blog':
-				$date = $wpdb->get_var("SELECT post_{$field} FROM $wpdb->posts WHERE post_status = 'publish' AND post_type IN ({$post_types}) ORDER BY post_{$field}_gmt DESC LIMIT 1");
-				break;
-			case 'server':
-				$add_seconds_server = date( 'Z' );
-				$date = $wpdb->get_var("SELECT DATE_ADD(post_{$field}_gmt, INTERVAL '$add_seconds_server' SECOND) FROM $wpdb->posts WHERE post_status = 'publish' AND post_type IN ({$post_types}) ORDER BY post_{$field}_gmt DESC LIMIT 1");
-				break;
-		}
-
-		if ( $date ) {
-			wp_cache_set( $key, $date, 'timeinfo' );
-		}
+	if ( false !== $date ) {
+		return $date;
 	}
 
-	return $date;
+	if ( 'any' === $post_type ) {
+		$post_types = get_post_types( array( 'public' => true ) );
+		array_walk( $post_types, array( $wpdb, 'escape_by_ref' ) );
+		$post_types = "'" . implode( "', '", $post_types ) . "'";
+	} else {
+		$post_types = "'" . sanitize_key( $post_type ) . "'";
+	}
+
+	switch ( $timezone ) {
+		case 'gmt':
+			$date = $wpdb->get_var("SELECT post_{$field}_gmt FROM $wpdb->posts WHERE post_status = 'publish' AND post_type IN ({$post_types}) ORDER BY post_{$field}_gmt DESC LIMIT 1");
+			break;
+		case 'blog':
+			$date = $wpdb->get_var("SELECT post_{$field} FROM $wpdb->posts WHERE post_status = 'publish' AND post_type IN ({$post_types}) ORDER BY post_{$field}_gmt DESC LIMIT 1");
+			break;
+		case 'server':
+			$add_seconds_server = date( 'Z' );
+			$date = $wpdb->get_var("SELECT DATE_ADD(post_{$field}_gmt, INTERVAL '$add_seconds_server' SECOND) FROM $wpdb->posts WHERE post_status = 'publish' AND post_type IN ({$post_types}) ORDER BY post_{$field}_gmt DESC LIMIT 1");
+			break;
+	}
+
+	if ( $date ) {
+		wp_cache_set( $key, $date, 'timeinfo' );
+
+		return $date;
+	}
+
+	return false;
 }
 
 /**

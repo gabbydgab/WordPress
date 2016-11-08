@@ -265,15 +265,7 @@ class WP_Term_Query {
 
 		$query['taxonomy'] = $taxonomies;
 
-		/**
-		 * Filters the terms query arguments.
-		 *
-		 * @since 3.1.0
-		 *
-		 * @param array $args       An array of get_terms() arguments.
-		 * @param array $taxonomies An array of taxonomies.
-		 */
-		$this->query_vars = apply_filters( 'get_terms_args', $query, $taxonomies );
+		$this->query_vars = $query;
 
 		/**
 		 * Fires after term query vars have been parsed.
@@ -673,11 +665,7 @@ class WP_Term_Query {
 
 		// $args can be anything. Only use the args defined in defaults to compute the key.
 		$key = md5( serialize( wp_array_slice_assoc( $args, array_keys( $this->query_var_defaults ) ) ) . serialize( $taxonomies ) . $this->request );
-		$last_changed = wp_cache_get( 'last_changed', 'terms' );
-		if ( ! $last_changed ) {
-			$last_changed = microtime();
-			wp_cache_set( 'last_changed', $last_changed, 'terms' );
-		}
+		$last_changed = wp_cache_get_last_changed( 'terms' );
 		$cache_key = "get_terms:$key:$last_changed";
 		$cache = wp_cache_get( $cache_key, 'terms' );
 		if ( false !== $cache ) {

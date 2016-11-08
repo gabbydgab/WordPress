@@ -76,20 +76,32 @@ function get_locale() {
 }
 
 /**
- * Retrieves the locale of the current user.
+ * Retrieves the locale of a user.
  *
  * If the user has a locale set to a non-empty string then it will be
  * returned. Otherwise it returns the locale of get_locale().
  *
  * @since 4.7.0
  *
- * @return string The locale of the current user.
+ * @param int|WP_User $user_id User's ID or a WP_User object. Defaults to current user.
+ * @return string The locale of the user.
  */
-function get_user_locale() {
-	$user = wp_get_current_user();
+function get_user_locale( $user_id = 0 ) {
+	$user = false;
+	if ( 0 === $user_id && function_exists( 'wp_get_current_user' ) ) {
+		$user = wp_get_current_user();
+	} elseif ( $user_id instanceof WP_User ) {
+		$user = $user_id;
+	} elseif ( $user_id && is_numeric( $user_id ) ) {
+		$user = get_user_by( 'id', $user_id );
+	}
+
+	if ( ! $user ) {
+		return get_locale();
+	}
 
 	$locale = $user->locale;
-	return ( '' === $locale ) ? get_locale() : $locale;
+	return $locale ? $locale : get_locale();
 }
 
 /**
@@ -698,7 +710,7 @@ function load_plugin_textdomain( $domain, $deprecated = false, $plugin_rel_path 
 	 * @param string $locale The plugin's current locale.
 	 * @param string $domain Text domain. Unique identifier for retrieving translated strings.
 	 */
-	$locale = apply_filters( 'plugin_locale', get_locale(), $domain );
+	$locale = apply_filters( 'plugin_locale', is_admin() ? get_user_locale() : get_locale(), $domain );
 
 	$mofile = $domain . '-' . $locale . '.mo';
 
@@ -732,7 +744,7 @@ function load_plugin_textdomain( $domain, $deprecated = false, $plugin_rel_path 
  */
 function load_muplugin_textdomain( $domain, $mu_plugin_rel_path = '' ) {
 	/** This filter is documented in wp-includes/l10n.php */
-	$locale = apply_filters( 'plugin_locale', get_locale(), $domain );
+	$locale = apply_filters( 'plugin_locale', is_admin() ? get_user_locale() : get_locale(), $domain );
 
 	$mofile = $domain . '-' . $locale . '.mo';
 
@@ -771,7 +783,7 @@ function load_theme_textdomain( $domain, $path = false ) {
 	 * @param string $locale The theme's current locale.
 	 * @param string $domain Text domain. Unique identifier for retrieving translated strings.
 	 */
-	$locale = apply_filters( 'theme_locale', get_locale(), $domain );
+	$locale = apply_filters( 'theme_locale', is_admin() ? get_user_locale() : get_locale(), $domain );
 
 	$mofile = $domain . '-' . $locale . '.mo';
 
@@ -853,7 +865,7 @@ function _load_textdomain_just_in_time( $domain ) {
 		}
 	}
 
-	$locale = get_locale();
+	$locale = is_admin() ? get_user_locale() : get_locale();
 	$mofile = "{$domain}-{$locale}.mo";
 
 	if ( in_array( WP_LANG_DIR . '/plugins/' . $mofile, $cached_mofiles ) ) {
@@ -1165,4 +1177,69 @@ function is_rtl() {
 		return false;
 	}
 	return $wp_locale->is_rtl();
+}
+
+/**
+ * Switches the translations according to the given locale.
+ *
+ * @since 4.7.0
+ *
+ * @global WP_Locale_Switcher $wp_locale_switcher
+ *
+ * @param string $locale The locale.
+ * @return bool True on success, false on failure.
+ */
+function switch_to_locale( $locale ) {
+	/* @var WP_Locale_Switcher $wp_locale_switcher */
+	global $wp_locale_switcher;
+
+	return $wp_locale_switcher->switch_to_locale( $locale );
+}
+
+/**
+ * Restores the translations according to the previous locale.
+ *
+ * @since 4.7.0
+ *
+ * @global WP_Locale_Switcher $wp_locale_switcher
+ *
+ * @return string|false Locale on success, false on error.
+ */
+function restore_previous_locale() {
+	/* @var WP_Locale_Switcher $wp_locale_switcher */
+	global $wp_locale_switcher;
+
+	return $wp_locale_switcher->restore_previous_locale();
+}
+
+/**
+ * Restores the translations according to the original locale.
+ *
+ * @since 4.7.0
+ *
+ * @global WP_Locale_Switcher $wp_locale_switcher
+ *
+ * @return string|false Locale on success, false on error.
+ */
+function restore_current_locale() {
+	/* @var WP_Locale_Switcher $wp_locale_switcher */
+	global $wp_locale_switcher;
+
+	return $wp_locale_switcher->restore_current_locale();
+}
+
+/**
+ * Whether switch_to_locale() is in effect.
+ *
+ * @since 4.7.0
+ *
+ * @global WP_Locale_Switcher $wp_locale_switcher
+ *
+ * @return bool True if the locale has been switched, false otherwise.
+ */
+function is_locale_switched() {
+	/* @var WP_Locale_Switcher $wp_locale_switcher */
+	global $wp_locale_switcher;
+
+	return $wp_locale_switcher->is_switched();
 }
